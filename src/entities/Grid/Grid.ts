@@ -7,7 +7,7 @@ import { Entity, XMLElement } from '../../types'
 import { Grid, GridAttributes, GridGridTypeEnum } from '../../baseEntities/Grid'
 import { TAGS } from '../../baseEntities/constants'
 import { createGridParamsGenerator } from './DefaultGridParamsGenerator'
-import { cellCenterBasedGridGenerator } from './CellCenterBasedGridGenerator'
+import { cellCenterBasedGridGenerator, cellCenterBasedGridGeneratorType1 } from './CellCenterBasedGridGenerator'
 
 const GRID_CELL_SIZE = 10 // meters
 
@@ -42,7 +42,8 @@ export class ExtendedGrid extends Grid {
     static fromGeoJSON(
         geoJSON: FeatureCollection,
         isoxmlManager: ISOXMLManager,
-        treatmentZoneCode?: number
+        treatmentZoneCode?: number,
+        gridType?: GridGridTypeEnum
     ): ExtendedGrid {
         const gridParamsGenerator = 
             isoxmlManager.options.gridRaramsGenerator ||
@@ -50,9 +51,15 @@ export class ExtendedGrid extends Grid {
 
         const gridParams = gridParamsGenerator(geoJSON)
 
-        const gridGenerator: GridGenerator = 
-            isoxmlManager.options.gridGenerator ||
-            cellCenterBasedGridGenerator
+        let gridGenerator = null
+
+        if (isoxmlManager.options.gridGenerator) {
+            gridGenerator = isoxmlManager.options.gridGenerator
+        } else if (gridType === GridGridTypeEnum.GridType1) {
+            gridGenerator = cellCenterBasedGridGeneratorType1
+        } else {
+            gridGenerator = cellCenterBasedGridGenerator
+        }
 
         const {minX, minY, numCols, numRows, cellWidth, cellHeight} = gridParams
         const buffer = gridGenerator(geoJSON, gridParams)
@@ -66,11 +73,11 @@ export class ExtendedGrid extends Grid {
             GridMinimumEastPosition: minX,
             GridCellNorthSize: cellHeight,
             GridCellEastSize: cellWidth,
-            GridMaximumColumn: numCols,
-            GridMaximumRow: numRows,
+            GridMaximumColumn: numRows,
+            GridMaximumRow: numCols,
             Filename: filename,
-            Filelength: numCols * numRows * 4,
-            GridType: GridGridTypeEnum.GridType2,
+            Filelength: gridType === GridGridTypeEnum.GridType1 ? numCols * numRows : numCols * numRows * 4,
+            GridType: gridType,
             ...typeof treatmentZoneCode === 'number' && {TreatmentZoneCode: treatmentZoneCode}
         }, isoxmlManager)
 

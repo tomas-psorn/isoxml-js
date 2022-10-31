@@ -1,13 +1,20 @@
-import { ISOXMLManager } from '../ISOXMLManager'
-import { registerEntityClass } from '../classRegistry'
+import {ISOXMLManager} from '../ISOXMLManager'
+import {registerEntityClass} from '../classRegistry'
 
-import { Entity, ValueInformation, ISOXMLReference, XMLElement } from '../types'
+import {Entity, ISOXMLReference, ValueInformation, XMLElement} from '../types'
 
-import { ProcessDataVariable, Task, TaskAttributes, TreatmentZone, ValuePresentation } from '../baseEntities'
-import { ExtendedGrid } from './Grid'
-import { FeatureCollection } from '@turf/helpers'
-import { TAGS } from '../baseEntities/constants'
-import { constructValueInformation, DDIToString } from '../utils'
+import {
+    GridGridTypeEnum,
+    ProcessDataVariable,
+    Task,
+    TaskAttributes,
+    TreatmentZone,
+    ValuePresentation
+} from '../baseEntities'
+import {ExtendedGrid} from './Grid'
+import {FeatureCollection} from '@turf/helpers'
+import {TAGS} from '../baseEntities/constants'
+import {constructValueInformation, DDIToString} from '../utils'
 
 export class ExtendedTask extends Task {
     public tag = TAGS.Task
@@ -24,8 +31,10 @@ export class ExtendedTask extends Task {
         geoJSON: FeatureCollection,
         DDI: number,
         deviceElemRef?: ISOXMLReference,
-        vpnRef?: ISOXMLReference
+        vpnRef?: ISOXMLReference,
+        gridType?: GridGridTypeEnum
     ): void {
+        if ( gridType === GridGridTypeEnum.GridType2) {
         const processDataVariable = this.isoxmlManager.createEntityFromAttributes<ProcessDataVariable>(
             TAGS.ProcessDataVariable, {
                 ProcessDataDDI: DDIToString(DDI),
@@ -42,11 +51,50 @@ export class ExtendedTask extends Task {
                 TreatmentZoneCode: 1,
                 ProcessDataVariable: [processDataVariable]
             }) as TreatmentZone
-        ]
+        ]} else {
+            let processDataVariable = this.isoxmlManager.createEntityFromAttributes<ProcessDataVariable>(
+                TAGS.ProcessDataVariable, {
+                    ProcessDataDDI: DDIToString(DDI),
+                    ProcessDataValue: 0,
+                    ...deviceElemRef && { DeviceElementIdRef: deviceElemRef },
+                    ...vpnRef && { ValuePresentationIdRef: vpnRef }
+                })
+            this.attributes.TreatmentZone = [
+                this.isoxmlManager.createEntityFromAttributes(TAGS.TreatmentZone, {
+                    TreatmentZoneCode: 0,
+                    ProcessDataVariable: [processDataVariable]
+                }) as TreatmentZone
+            ]
+
+            const zones = geoJSON.features.reduce((acc, feature) => {
+                if (acc.find(item => item.code === feature.properties.zone)) return acc
+
+                acc.push({
+                    code: feature.properties.zone,
+                    dose: feature.properties.DOSE
+                })
+
+                return acc
+            }, [])
+
+            zones.forEach((zone) => {
+                processDataVariable = this.isoxmlManager.createEntityFromAttributes<ProcessDataVariable>(
+                    TAGS.ProcessDataVariable, {
+                        ProcessDataDDI: DDIToString(DDI),
+                        ProcessDataValue: zone.dose || 0,
+                        ...deviceElemRef && { DeviceElementIdRef: deviceElemRef },
+                        ...vpnRef && { ValuePresentationIdRef: vpnRef }
+                    })
+                this.attributes.TreatmentZone.push(this.isoxmlManager.createEntityFromAttributes(TAGS.TreatmentZone, {
+                    TreatmentZoneCode:  zone.code,
+                    ProcessDataVariable: [processDataVariable]
+                }) as TreatmentZone)
+            })
+        }
 
         this.attributes.OutOfFieldTreatmentZoneCode = 0
         this.attributes.Grid = [
-            ExtendedGrid.fromGeoJSON(geoJSON, this.isoxmlManager, 1)
+            ExtendedGrid.fromGeoJSON(geoJSON, this.isoxmlManager, 1, gridType)
         ]
     }
 

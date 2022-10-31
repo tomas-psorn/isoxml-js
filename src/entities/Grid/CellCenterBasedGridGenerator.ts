@@ -137,3 +137,34 @@ export function cellCenterBasedGridGenerator(
 
     return buffer
 }
+
+// Simplified algorithm: just check the center of cell
+export function cellCenterBasedGridGeneratorType1(
+    geometry: FeatureCollection<Geometry>,
+    gridParams: GridParameters
+): ArrayBuffer {
+    //   const initDate = +new Date()
+    const { minX, minY, numCols, numRows, cellWidth, cellHeight } = gridParams
+    const filelength = numCols * numRows
+
+    const buffer = new ArrayBuffer(filelength)
+    const int8array = new Int8Array(buffer)
+
+    const featureFinder = new FeatureFinder(geometry)
+
+    for (let y = 0; y < numRows; y++) {
+        for (let x = 0; x < numCols; x++) {
+            const lng = minX + (x + 0.5) * cellWidth
+            const lat = minY + (y + 0.5) * cellHeight
+            const feature = featureFinder.findFeature([lng, lat])
+            const value = feature ? feature.properties.zone : 0
+
+            int8array[y * numCols + x] = Math.round(value)
+        }
+    }
+    //   console.log('cells generation', +new Date() - initDate)
+
+    return buffer
+}
+
+
