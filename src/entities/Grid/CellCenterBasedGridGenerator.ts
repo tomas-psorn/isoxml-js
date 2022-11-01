@@ -159,7 +159,7 @@ export function cellCenterBasedGridGeneratorType1(
             const feature = featureFinder.findFeature([lng, lat])
             const value = feature ? feature.properties.zone : 0
 
-            int8array[x * numRows + y] = Math.round(value)
+            int8array[y * numCols + x] = Math.round(value)
         }
     }
     //   console.log('cells generation', +new Date() - initDate)
